@@ -1,8 +1,40 @@
+import express from "express";
+import fetch from "node-fetch";
 import { google } from "googleapis";
 
-// -----------------------------
+// ---------------------------------------------
+// CONFIGURAÇÃO DO SERVIDOR EXPRESS
+// ---------------------------------------------
+const app = express();
+app.use(express.json());
+
+const PORT = process.env.PORT || 3000;
+
+// ---------------------------------------------
+// FUNÇÃO PARA ENVIAR MENSAGEM VIA WHATSAPP API
+// ---------------------------------------------
+async function sendMessage(to, message) {
+  const url = `https://graph.facebook.com/v20.0/${process.env.WHATSAPP_PHONE_ID}/messages`;
+
+  const payload = {
+    messaging_product: "whatsapp",
+    to,
+    text: { body: message }
+  };
+
+  await fetch(url, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${process.env.WHATSAPP_TOKEN}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+}
+
+// ---------------------------------------------
 // GOOGLE SHEETS – CONFIGURAÇÃO
-// -----------------------------
+// ---------------------------------------------
 const auth = new google.auth.GoogleAuth({
   keyFile: "credentials.json",
   scopes: ["https://www.googleapis.com/auth/spreadsheets"],
@@ -35,9 +67,9 @@ async function salvarLead(nome, produto, info, telefone) {
   });
 }
 
-// -----------------------------
+// ---------------------------------------------
 // BOT – ESTADOS DE CONVERSA
-// -----------------------------
+// ---------------------------------------------
 const userState = {};
 const userData = {};
 
@@ -174,42 +206,36 @@ Digite apenas o número da opção desejada.`;
   // COLETA DE DADOS POR PRODUTO
   // -----------------------------
 
-  // Banda Larga
   if (userState[from] === "endereco_banda_larga") {
     await salvarLead(userData[from].nome, "Banda Larga", text, from);
     await encaminharLead(`Banda Larga, Endereço: ${text}`, from);
     reply = "Obrigado! Encaminhei sua solicitação.";
   }
 
-  // Link Dedicado
   else if (userState[from] === "endereco_link_dedicado") {
     await salvarLead(userData[from].nome, "Link Dedicado", text, from);
     await encaminharLead(`Link Dedicado, Endereço: ${text}`, from);
     reply = "Obrigado! Encaminhei sua solicitação.";
   }
 
-  // Linha Móvel
   else if (userState[from] === "qtd_linha_movel") {
     await salvarLead(userData[from].nome, "Linha Móvel", text, from);
     await encaminharLead(`Linha Móvel, Quantidade: ${text}`, from);
     reply = "Obrigado! Encaminhei sua solicitação.";
   }
 
-  // Linha Fixa (ATUALIZADO)
   else if (userState[from] === "qtd_linha_fixa") {
     await salvarLead(userData[from].nome, "Linha Fixa", text, from);
     await encaminharLead(`Linha Fixa, Quantidade: ${text}`, from);
     reply = "Obrigado! Encaminhei sua solicitação.";
   }
 
-  // VoIP
   else if (userState[from] === "qtd_voip") {
     await salvarLead(userData[from].nome, "VoIP", text, from);
     await encaminharLead(`VoIP, Quantidade: ${text}`, from);
     reply = "Obrigado! Encaminhei sua solicitação.";
   }
 
-  // Reset
   userState[from] = "inicio";
 
   await sendMessage(from, reply);
@@ -227,3 +253,10 @@ ${info}`;
 
   await sendMessage("11966140453", resumo);
 }
+
+// ---------------------------------------------
+// INICIAR SERVIDOR
+// ---------------------------------------------
+app.listen(PORT, () => {
+  console.log(`Servidor rodando na porta ${PORT}`);
+});
