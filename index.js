@@ -1,130 +1,229 @@
-import express from "express";
-import axios from "axios";
+const { google } = require("googleapis");
 
-const app = express();
-app.use(express.json());
-
-// 🔐 CONFIGURAÇÕES DA META
-const VERIFY_TOKEN = "centraltele";
-const TOKEN = "EAAa06y1g2rEBRhevJii4ybZCOfKSRrntxmnvdwCivDtnUtTlnhzQwZCgPR0NQZBu8oqVA7xrWKRjiw8eWei7e2ANFAB5n5dIRIqBut7cHwUimmJ2DKZCO5GZATyZAJYdJa1jv2jYZA7fUYcXyTQBHBBM5ZAQ6ZCDclsFaeWUip4l4Df6slaOtECLnhJprbAc8ewtNZBCSZBFOov3hEotgO5WcoXrppPGX40eqRacmqnqqrnLWwtFgLD5aUX5g5eyV35Ta6kpbGMpKD1d7pZBH199P2Jo5ZAtugXT6V1vFBgZDZD";
-const PHONE_NUMBER_ID = "1129395576926383";
-
-// ======================================================
-// ✅ WEBHOOK GET (VERIFICAÇÃO DA META)
-// ======================================================
-app.get("/webhook", (req, res) => {
-  const mode = req.query["hub.mode"];
-  const token = req.query["hub.verify_token"];
-  const challenge = req.query["hub.challenge"];
-
-  if (mode && token && mode === "subscribe" && token === VERIFY_TOKEN) {
-    console.log("Webhook verificado com sucesso!");
-    return res.status(200).send(challenge);
-  }
-
-  return res.sendStatus(403);
+// -----------------------------
+// GOOGLE SHEETS – CONFIGURAÇÃO
+// -----------------------------
+const auth = new google.auth.GoogleAuth({
+  keyFile: "credentials.json",
+  scopes: ["https://www.googleapis.com/auth/spreadsheets"],
 });
 
-// ======================================================
-// ✅ WEBHOOK POST (RECEBIMENTO DE MENSAGENS)
-// ======================================================
-app.post("/webhook", async (req, res) => {
-  try {
-    const entry = req.body.entry?.[0];
-    const changes = entry?.changes?.[0];
-    const messageObj = changes?.value?.messages?.[0];
+const sheets = google.sheets("v4");
+const SPREADSHEET_ID = "1MPvz5s6ogt6h8uLFsLQ2glmjiWW30lRQLt6blwTwfPo";
 
-    if (!messageObj) {
-      return res.sendStatus(200);
-    }
+// Função para salvar lead na planilha
+async function salvarLead(nome, produto, info, telefone) {
+  const client = await auth.getClient();
 
-    const phone = messageObj.from;
-    const message = messageObj.text?.body?.trim();
+  const data = [
+    [
+      nome,
+      produto,
+      info,
+      telefone,
+      new Date().toLocaleDateString("pt-BR"),
+      new Date().toLocaleTimeString("pt-BR"),
+    ],
+  ];
 
-    console.log("📩 Mensagem recebida:", message, "de", phone);
-
-    // ======================================================
-    // 🔥 TRANSFERÊNCIA PARA ATENDENTE HUMANO
-    // ======================================================
-    if (message === "1") {
-      await sendMessage(phone, "Certo! Vou te transferir para um atendente humano.");
-      await sendMessage(
-        phone,
-        "Clique aqui para falar com o atendente: https://wa.me/5511966140453"
-      );
-      return res.sendStatus(200);
-    }
-
-    // ======================================================
-    // 📌 MENU PRINCIPAL
-    // ======================================================
-    if (message === "oi" || message === "menu" || message === "olá") {
-      await sendMessage(
-        phone,
-        "👋 Olá! Como posso ajudar?\n\n" +
-        "1️⃣ Falar com um atendente humano\n" +
-        "2️⃣ Informações sobre serviços\n" +
-        "3️⃣ Horário de atendimento"
-      );
-      return res.sendStatus(200);
-    }
-
-    // ======================================================
-    // 📌 OUTRAS OPÇÕES DO MENU
-    // ======================================================
-    if (message === "2") {
-      await sendMessage(phone, "📄 Nossos serviços incluem suporte técnico, atendimento comercial e muito mais.");
-      return res.sendStatus(200);
-    }
-
-    if (message === "3") {
-      await sendMessage(phone, "🕒 Nosso horário de atendimento é das 08h às 18h, de segunda a sexta.");
-      return res.sendStatus(200);
-    }
-
-    // ======================================================
-    // 📌 RESPOSTA PADRÃO
-    // ======================================================
-    await sendMessage(
-      phone,
-      "Não entendi sua mensagem. Digite *menu* para ver as opções."
-    );
-
-    return res.sendStatus(200);
-
-  } catch (error) {
-    console.error("Erro no webhook:", error);
-    return res.sendStatus(500);
-  }
-});
-
-// ======================================================
-// 📤 FUNÇÃO PARA ENVIAR MENSAGENS
-// ======================================================
-async function sendMessage(to, message) {
-  try {
-    await axios.post(
-      `https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`,
-      {
-        messaging_product: "whatsapp",
-        to,
-        text: { body: message }
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${TOKEN}`,
-          "Content-Type": "application/json"
-        }
-      }
-    );
-  } catch (error) {
-    console.error("Erro ao enviar mensagem:", error?.response?.data || error);
-  }
+  await sheets.spreadsheets.values.append({
+    auth: client,
+    spreadsheetId: SPREADSHEET_ID,
+    range: "A:F",
+    valueInputOption: "RAW",
+    resource: { values: data },
+  });
 }
 
-// ======================================================
-// 🚀 INICIAR SERVIDOR
-// ======================================================
-app.listen(3000, () => {
-  console.log("Servidor rodando na porta 3000");
+// -----------------------------
+// BOT – ESTADOS DE CONVERSA
+// -----------------------------
+const userState = {};
+const userData = {};
+
+app.post("/webhook", async (req, res) => {
+  const message = req.body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+  if (!message) return res.sendStatus(200);
+
+  const from = message.from;
+  const text = message.text?.body?.trim();
+
+  if (!userState[from]) userState[from] = "inicio";
+
+  let reply = "";
+
+  // -----------------------------
+  // INÍCIO → Pergunta o nome
+  // -----------------------------
+  if (userState[from] === "inicio") {
+    reply = `Olá!
+Aqui é o assistente da CentralTele, como posso te ajudar?
+
+Qual seu nome?`;
+
+    userState[from] = "aguardando_nome";
+    await sendMessage(from, reply);
+    return res.sendStatus(200);
+  }
+
+  // -----------------------------
+  // CLIENTE RESPONDE O NOME
+  // -----------------------------
+  if (userState[from] === "aguardando_nome") {
+    userData[from] = { nome: text };
+
+    reply = `MENU PRINCIPAL:
+
+1️⃣ Qual produto está precisando?
+2️⃣ Falar com Atendente
+3️⃣ Falar com Suporte
+
+🕒 Horário de atendimento:
+Segunda a Sexta: 08h às 18h
+Sábado: 08h às 12h
+
+Digite apenas o número da opção desejada.`;
+
+    userState[from] = "menu_principal";
+    await sendMessage(from, reply);
+    return res.sendStatus(200);
+  }
+
+  // -----------------------------
+  // MENU PRINCIPAL
+  // -----------------------------
+  if (userState[from] === "menu_principal") {
+    if (text === "1") {
+      reply = `1️⃣ Banda Larga
+2️⃣ Link Dedicado
+3️⃣ Linha Móvel
+4️⃣ Linha Fixa
+5️⃣ VoIP
+6️⃣ Armazenamento em nuvem
+
+Digite apenas o número da opção desejada.`;
+
+      userState[from] = "menu_produtos";
+    }
+
+    else if (text === "2") {
+      await salvarLead(userData[from].nome, "Falar com atendente", "-", from);
+      await encaminharLead("Falar com atendente", from);
+      reply = "Certo! Vou te encaminhar para um atendente.";
+    }
+
+    else if (text === "3") {
+      await salvarLead(userData[from].nome, "Falar com Suporte", "-", from);
+      await encaminharLead("Falar com Suporte", from);
+      reply = "Certo! Vou te encaminhar para o suporte.";
+    }
+
+    else {
+      reply = "Opção inválida. Escolha 1, 2 ou 3.";
+    }
+
+    await sendMessage(from, reply);
+    return res.sendStatus(200);
+  }
+
+  // -----------------------------
+  // MENU DE PRODUTOS
+  // -----------------------------
+  if (userState[from] === "menu_produtos") {
+    switch (text) {
+      case "1":
+        reply = "Perfeito! Para Banda Larga, envie seu endereço completo.";
+        userState[from] = "endereco_banda_larga";
+        break;
+
+      case "2":
+        reply = "Certo! Para Link Dedicado, envie seu endereço completo.";
+        userState[from] = "endereco_link_dedicado";
+        break;
+
+      case "3":
+        reply = "Quantas linhas móveis você precisa?";
+        userState[from] = "qtd_linha_movel";
+        break;
+
+      case "4":
+        reply = "Quantas linhas fixas você precisa?";
+        userState[from] = "qtd_linha_fixa";
+        break;
+
+      case "5":
+        reply = "Quantos ramais VoIP você precisa?";
+        userState[from] = "qtd_voip";
+        break;
+
+      case "6":
+        await salvarLead(userData[from].nome, "Armazenamento em nuvem", "-", from);
+        await encaminharLead("Armazenamento em nuvem", from);
+        reply = "Perfeito! Vou encaminhar sua solicitação.";
+        break;
+
+      default:
+        reply = "Opção inválida. Escolha de 1 a 6.";
+    }
+
+    await sendMessage(from, reply);
+    return res.sendStatus(200);
+  }
+
+  // -----------------------------
+  // COLETA DE DADOS POR PRODUTO
+  // -----------------------------
+
+  // Banda Larga
+  if (userState[from] === "endereco_banda_larga") {
+    await salvarLead(userData[from].nome, "Banda Larga", text, from);
+    await encaminharLead(`Banda Larga, Endereço: ${text}`, from);
+    reply = "Obrigado! Encaminhei sua solicitação.";
+  }
+
+  // Link Dedicado
+  else if (userState[from] === "endereco_link_dedicado") {
+    await salvarLead(userData[from].nome, "Link Dedicado", text, from);
+    await encaminharLead(`Link Dedicado, Endereço: ${text}`, from);
+    reply = "Obrigado! Encaminhei sua solicitação.";
+  }
+
+  // Linha Móvel
+  else if (userState[from] === "qtd_linha_movel") {
+    await salvarLead(userData[from].nome, "Linha Móvel", text, from);
+    await encaminharLead(`Linha Móvel, Quantidade: ${text}`, from);
+    reply = "Obrigado! Encaminhei sua solicitação.";
+  }
+
+  // Linha Fixa (ATUALIZADO)
+  else if (userState[from] === "qtd_linha_fixa") {
+    await salvarLead(userData[from].nome, "Linha Fixa", text, from);
+    await encaminharLead(`Linha Fixa, Quantidade: ${text}`, from);
+    reply = "Obrigado! Encaminhei sua solicitação.";
+  }
+
+  // VoIP
+  else if (userState[from] === "qtd_voip") {
+    await salvarLead(userData[from].nome, "VoIP", text, from);
+    await encaminharLead(`VoIP, Quantidade: ${text}`, from);
+    reply = "Obrigado! Encaminhei sua solicitação.";
+  }
+
+  // Reset
+  userState[from] = "inicio";
+
+  await sendMessage(from, reply);
+  res.sendStatus(200);
 });
+
+// -------------------------------------------
+// FUNÇÃO PARA ENCAMINHAR LEAD VIA WHATSAPP
+// -------------------------------------------
+async function encaminharLead(info, from) {
+  const nome = userData[from]?.nome || "Não informado";
+
+  const resumo = `Nome: ${nome}
+${info}`;
+
+  await sendMessage("11966140453", resumo);
+}
