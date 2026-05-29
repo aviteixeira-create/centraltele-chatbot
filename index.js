@@ -103,7 +103,7 @@ async function enviarMensagem(to, text) {
       },
       {
         headers: {
-          Authorization: `Bearer SEU_TOKEN_DO_WHATSAPP`,
+          Authorization: `Bearer EAAa06y1g2rEBRuzQxeBXpxZCowKtTiLNquZCfVdiTI8w2ESXpCtgbZBx2ZBSVhQJi36L3b0MjkkZAc0xABZBZBfKCMpe6cT7f5u0WB8nOZBnMkRJn9jCDsodEDTmJlypf0YyjHXktbKZA6JpwOXvwG8yOvcZAJt25CwZArEwrvVTcZCX0amNHWVWrbQSsqxlt065JgZDZD`,
           "Content-Type": "application/json"
         }
       }
