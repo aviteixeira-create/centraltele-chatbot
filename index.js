@@ -20,7 +20,7 @@ const auth = new google.auth.GoogleAuth({
 const sheets = google.sheets({ version: "v4", auth });
 
 // ID da planilha
-const SPREADSHEET_ID = "COLOQUE_AQUI_O_ID_DA_SUA_PLANILHA";
+const SPREADSHEET_ID = "1MPvz5s6ogt6h8uLFsLQ2glmjiWW30lRQLt6blwTwfPo";
 
 // Função para buscar etapa do funil
 async function getEtapa(numero) {
@@ -115,7 +115,7 @@ async function enviarMensagem(to, text) {
 
 // Webhook de verificação
 app.get("/webhook", (req, res) => {
-  const VERIFY_TOKEN = "SEU_TOKEN_DE_VERIFICACAO";
+  const VERIFY_TOKEN = "EAAa06y1g2rEBRuzQxeBXpxZCowKtTiLNquZCfVdiTI8w2ESXpCtgbZBx2ZBSVhQJi36L3b0MjkkZAc0xABZBZBfKCMpe6cT7f5u0WB8nOZBnMkRJn9jCDsodEDTmJlypf0YyjHXktbKZA6JpwOXvwG8yOvcZAJt25CwZArEwrvVTcZCX0amNHWVWrbQSsqxlt065JgZDZD";
 
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
