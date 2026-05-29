@@ -189,7 +189,9 @@ app.post("/webhook", async (req, res) => {
 
       if (text === "2") {
         // Falar com atendente
-        const resumo = `Nome: ${session.nome}Telefone: ${from}Falar com atendente`;
+        const resumo = `Nome: ${session.nome}
+        Telefone: ${from}
+        Falar com atendente`;
         await encaminharParaAtendente(resumo);
         await salvarLeadFinal({
           nome: session.nome,
@@ -204,7 +206,9 @@ app.post("/webhook", async (req, res) => {
 
       if (text === "3") {
         // Falar com suporte
-        const resumo = `Nome: ${session.nome}Telefone: ${from}Falar com Suporte`;
+        const resumo = `Nome: ${session.nome}
+        Telefone: ${from}
+        Falar com Suporte`;
         await encaminharParaAtendente(resumo);
         await salvarLeadFinal({
           nome: session.nome,
@@ -261,7 +265,9 @@ app.post("/webhook", async (req, res) => {
 
       if (text === "6") {
         session.produto = "Armazenamento em nuvem";
-        const resumo = `Nome: ${session.nome}Telefone: ${from}Produto: ${session.produto}`;
+        const resumo = `Nome: ${session.nome}
+        Telefone: ${from}
+        Produto: ${session.produto}`;
         await encaminharParaAtendente(resumo);
         await salvarLeadFinal({
           nome: session.nome,
@@ -281,7 +287,10 @@ app.post("/webhook", async (req, res) => {
     // 5) Coletando endereço (Banda Larga / Link Dedicado)
     if (session.stage === "coletando_endereco") {
       const endereco = text;
-      const resumo = `Nome: ${session.nome}Telefone: ${from}Produto: ${session.produto}Endereço: ${endereco}`;
+      const resumo = `Nome: ${session.nome}
+      Telefone: ${from}
+      Produto: ${session.produto}
+      Endereço: ${endereco}`;
       await encaminharParaAtendente(resumo);
       await salvarLeadFinal({
         nome: session.nome,
@@ -297,7 +306,10 @@ app.post("/webhook", async (req, res) => {
     // 6) Coletando quantidade (Linha Móvel / Fixa / VoIP)
     if (session.stage === "coletando_quantidade") {
       const quantidade = text;
-      const resumo = `Nome: ${session.nome}Telefone: ${from}Produto: ${session.produto}Quantidade: ${quantidade}`;
+      const resumo = `Nome: ${session.nome}
+      Telefone: ${from}
+      Produto: ${session.produto}
+      Quantidade: ${quantidade}`;
       await encaminharParaAtendente(resumo);
       await salvarLeadFinal({
         nome: session.nome,
