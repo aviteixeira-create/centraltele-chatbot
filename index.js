@@ -95,7 +95,7 @@ app.post("/webhook", async (req, res) => {
 async function enviarMensagem(to, text) {
   try {
     await axios.post(
-      `https://graph.facebook.com/v20.0/1129395576926383/messages`,
+      `https://graph.facebook.com/v20.0/2173368790106312/messages`,
       {
         messaging_product: "whatsapp",
         to,
