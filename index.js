@@ -1,262 +1,264 @@
 import express from "express";
-import fetch from "node-fetch";
+import axios from "axios";
 import { google } from "googleapis";
 
-// ---------------------------------------------
-// CONFIGURAÇÃO DO SERVIDOR EXPRESS
-// ---------------------------------------------
 const app = express();
 app.use(express.json());
 
-const PORT = process.env.PORT || 3000;
+// 🔐 CONFIG META
+const VERIFY_TOKEN = "centraltele";
+const TOKEN = "SEU_TOKEN_AQUI";
+const PHONE_NUMBER_ID = "1129395576926383";
 
-// ---------------------------------------------
-// FUNÇÃO PARA ENVIAR MENSAGEM VIA WHATSAPP API
-// ---------------------------------------------
-async function sendMessage(to, message) {
-  const url = `https://graph.facebook.com/v20.0/${process.env.WHATSAPP_PHONE_ID}/messages`;
-
-  const payload = {
-    messaging_product: "whatsapp",
-    to,
-    text: { body: message }
-  };
-
-  await fetch(url, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${process.env.WHATSAPP_TOKEN}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(payload)
+// 🔐 CONFIG GOOGLE SHEETS
+async function getSheets() {
+  const auth = new google.auth.GoogleAuth({
+    keyFile: "credentials.json",
+    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
   });
+
+  const client = await auth.getClient();
+  return google.sheets({ version: "v4", auth: client });
 }
 
-// ---------------------------------------------
-// GOOGLE SHEETS – CONFIGURAÇÃO
-// ---------------------------------------------
-const auth = new google.auth.GoogleAuth({
-  keyFile: "credentials.json",
-  scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-});
-
-const sheets = google.sheets("v4");
 const SPREADSHEET_ID = "1MPvz5s6ogt6h8uLFsLQ2glmjiWW30lRQLt6blwTwfPo";
 
-// Função para salvar lead na planilha
-async function salvarLead(nome, produto, info, telefone) {
-  const client = await auth.getClient();
-
-  const data = [
-    [
-      nome,
-      produto,
-      info,
-      telefone,
-      new Date().toLocaleDateString("pt-BR"),
-      new Date().toLocaleTimeString("pt-BR"),
-    ],
-  ];
-
-  await sheets.spreadsheets.values.append({
-    auth: client,
+// ======================================================
+// 🔎 BUSCAR ETAPA DO CLIENTE
+// ======================================================
+async function getEtapa(phone) {
+  const sheets = await getSheets();
+  const resp = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
     range: "A:F",
+  });
+
+  const rows = resp.data.values || [];
+
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i][3] === phone) {
+      return { etapa: rows[i][5], row: i + 1 };
+    }
+  }
+
+  return { etapa: "inicio", row: null };
+}
+
+// ======================================================
+// ✏️ SALVAR OU ATUALIZAR CLIENTE
+// ======================================================
+async function salvarDados(nome, produto, info, telefone, etapa) {
+  const sheets = await getSheets();
+
+  const data = new Date();
+  const dataStr = data.toLocaleDateString("pt-BR");
+  const horaStr = data.toLocaleTimeString("pt-BR");
+
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SPREADSHEET_ID,
+    range: "A1",
     valueInputOption: "RAW",
-    resource: { values: data },
+    resource: {
+      values: [[nome, produto, info, telefone, dataStr, horaStr, etapa]],
+    },
   });
 }
 
-// ---------------------------------------------
-// BOT – ESTADOS DE CONVERSA
-// ---------------------------------------------
-const userState = {};
-const userData = {};
-
-app.post("/webhook", async (req, res) => {
-  const message = req.body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
-  if (!message) return res.sendStatus(200);
-
-  const from = message.from;
-  const text = message.text?.body?.trim();
-
-  if (!userState[from]) userState[from] = "inicio";
-
-  let reply = "";
-
-  // -----------------------------
-  // INÍCIO → Pergunta o nome
-  // -----------------------------
-  if (userState[from] === "inicio") {
-    reply = `Olá!
-Aqui é o assistente da CentralTele, como posso te ajudar?
-
-Qual seu nome?`;
-
-    userState[from] = "aguardando_nome";
-    await sendMessage(from, reply);
-    return res.sendStatus(200);
+// ======================================================
+// 📤 ENVIAR MENSAGEM
+// ======================================================
+async function sendMessage(to, message) {
+  try {
+    await axios.post(
+      `https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`,
+      {
+        messaging_product: "whatsapp",
+        to,
+        text: { body: message },
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${TOKEN}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+  } catch (error) {
+    console.error("Erro ao enviar mensagem:", error?.response?.data || error);
   }
-
-  // -----------------------------
-  // CLIENTE RESPONDE O NOME
-  // -----------------------------
-  if (userState[from] === "aguardando_nome") {
-    userData[from] = { nome: text };
-
-    reply = `MENU PRINCIPAL:
-
-1️⃣ Qual produto está precisando?
-2️⃣ Falar com Atendente
-3️⃣ Falar com Suporte
-
-🕒 Horário de atendimento:
-Segunda a Sexta: 08h às 18h
-Sábado: 08h às 12h
-
-Digite apenas o número da opção desejada.`;
-
-    userState[from] = "menu_principal";
-    await sendMessage(from, reply);
-    return res.sendStatus(200);
-  }
-
-  // -----------------------------
-  // MENU PRINCIPAL
-  // -----------------------------
-  if (userState[from] === "menu_principal") {
-    if (text === "1") {
-      reply = `1️⃣ Banda Larga
-2️⃣ Link Dedicado
-3️⃣ Linha Móvel
-4️⃣ Linha Fixa
-5️⃣ VoIP
-6️⃣ Armazenamento em nuvem
-
-Digite apenas o número da opção desejada.`;
-
-      userState[from] = "menu_produtos";
-    }
-
-    else if (text === "2") {
-      await salvarLead(userData[from].nome, "Falar com atendente", "-", from);
-      await encaminharLead("Falar com atendente", from);
-      reply = "Certo! Vou te encaminhar para um atendente.";
-    }
-
-    else if (text === "3") {
-      await salvarLead(userData[from].nome, "Falar com Suporte", "-", from);
-      await encaminharLead("Falar com Suporte", from);
-      reply = "Certo! Vou te encaminhar para o suporte.";
-    }
-
-    else {
-      reply = "Opção inválida. Escolha 1, 2 ou 3.";
-    }
-
-    await sendMessage(from, reply);
-    return res.sendStatus(200);
-  }
-
-  // -----------------------------
-  // MENU DE PRODUTOS
-  // -----------------------------
-  if (userState[from] === "menu_produtos") {
-    switch (text) {
-      case "1":
-        reply = "Perfeito! Para Banda Larga, envie seu endereço completo.";
-        userState[from] = "endereco_banda_larga";
-        break;
-
-      case "2":
-        reply = "Certo! Para Link Dedicado, envie seu endereço completo.";
-        userState[from] = "endereco_link_dedicado";
-        break;
-
-      case "3":
-        reply = "Quantas linhas móveis você precisa?";
-        userState[from] = "qtd_linha_movel";
-        break;
-
-      case "4":
-        reply = "Quantas linhas fixas você precisa?";
-        userState[from] = "qtd_linha_fixa";
-        break;
-
-      case "5":
-        reply = "Quantos ramais VoIP você precisa?";
-        userState[from] = "qtd_voip";
-        break;
-
-      case "6":
-        await salvarLead(userData[from].nome, "Armazenamento em nuvem", "-", from);
-        await encaminharLead("Armazenamento em nuvem", from);
-        reply = "Perfeito! Vou encaminhar sua solicitação.";
-        break;
-
-      default:
-        reply = "Opção inválida. Escolha de 1 a 6.";
-    }
-
-    await sendMessage(from, reply);
-    return res.sendStatus(200);
-  }
-
-  // -----------------------------
-  // COLETA DE DADOS POR PRODUTO
-  // -----------------------------
-
-  if (userState[from] === "endereco_banda_larga") {
-    await salvarLead(userData[from].nome, "Banda Larga", text, from);
-    await encaminharLead(`Banda Larga, Endereço: ${text}`, from);
-    reply = "Obrigado! Encaminhei sua solicitação.";
-  }
-
-  else if (userState[from] === "endereco_link_dedicado") {
-    await salvarLead(userData[from].nome, "Link Dedicado", text, from);
-    await encaminharLead(`Link Dedicado, Endereço: ${text}`, from);
-    reply = "Obrigado! Encaminhei sua solicitação.";
-  }
-
-  else if (userState[from] === "qtd_linha_movel") {
-    await salvarLead(userData[from].nome, "Linha Móvel", text, from);
-    await encaminharLead(`Linha Móvel, Quantidade: ${text}`, from);
-    reply = "Obrigado! Encaminhei sua solicitação.";
-  }
-
-  else if (userState[from] === "qtd_linha_fixa") {
-    await salvarLead(userData[from].nome, "Linha Fixa", text, from);
-    await encaminharLead(`Linha Fixa, Quantidade: ${text}`, from);
-    reply = "Obrigado! Encaminhei sua solicitação.";
-  }
-
-  else if (userState[from] === "qtd_voip") {
-    await salvarLead(userData[from].nome, "VoIP", text, from);
-    await encaminharLead(`VoIP, Quantidade: ${text}`, from);
-    reply = "Obrigado! Encaminhei sua solicitação.";
-  }
-
-  userState[from] = "inicio";
-
-  await sendMessage(from, reply);
-  res.sendStatus(200);
-});
-
-// -------------------------------------------
-// FUNÇÃO PARA ENCAMINHAR LEAD VIA WHATSAPP
-// -------------------------------------------
-async function encaminharLead(info, from) {
-  const nome = userData[from]?.nome || "Não informado";
-
-  const resumo = `Nome: ${nome}
-${info}`;
-
-  await sendMessage("11966140453", resumo);
 }
 
-// ---------------------------------------------
-// INICIAR SERVIDOR
-// ---------------------------------------------
-app.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT}`);
+// ======================================================
+// 🔐 VERIFICAÇÃO DO WEBHOOK
+// ======================================================
+app.get("/webhook", (req, res) => {
+  const mode = req.query["hub.mode"];
+  const token = req.query["hub.verify_token"];
+  const challenge = req.query["hub.challenge"];
+
+  if (mode === "subscribe" && token === VERIFY_TOKEN) {
+    return res.status(200).send(challenge);
+  }
+
+  return res.sendStatus(403);
 });
+
+// ======================================================
+// 📩 RECEBIMENTO DE MENSAGENS
+// ======================================================
+app.post("/webhook", async (req, res) => {
+  try {
+    const msg = req.body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+    if (!msg) return res.sendStatus(200);
+
+    const phone = msg.from;
+    const text = msg.text?.body?.trim() || "";
+
+    console.log("📩 Mensagem:", phone, text);
+
+    const { etapa } = await getEtapa(phone);
+
+    // ======================================================
+    // ETAPA 0 — INÍCIO
+    // ======================================================
+    if (etapa === "inicio") {
+      await sendMessage(phone, "Olá!\nAqui é o assistente da CentralTele.\n\nQual seu nome?");
+      await salvarDados("", "", "", phone, "aguardando_nome");
+      return res.sendStatus(200);
+    }
+
+    // ======================================================
+    // ETAPA 1 — RECEBER NOME
+    // ======================================================
+    if (etapa === "aguardando_nome") {
+      const nome = text;
+
+      await sendMessage(
+        phone,
+        `Prazer, ${nome}!\n\nMENU PRINCIPAL:\n\n1 - Qual produto está precisando?\n2 - Falar com Atendente\n3 - Falar com Suporte\n\nHorário de funcionamento:\nSeg a Sex: 9h às 18h\nSábado: 9h às 12h\nDomingos e Feriados: fechado`
+      );
+
+      await salvarDados(nome, "", "", phone, "menu_principal");
+      return res.sendStatus(200);
+    }
+
+    // ======================================================
+    // ETAPA 2 — MENU PRINCIPAL
+    // ======================================================
+    if (etapa === "menu_principal") {
+      const nome = text;
+
+      if (text === "1") {
+        await sendMessage(
+          phone,
+          "MENU DE PRODUTOS:\n\n1 – Banda Larga\n2 – Link Dedicado\n3 – Linha Móvel\n4 – Linha Fixa\n5 – Voip\n6 – Armazenamento em nuvem"
+        );
+        await salvarDados("", "", "", phone, "menu_produtos");
+        return res.sendStatus(200);
+      }
+
+      if (text === "2") {
+        const link = `https://wa.me/5511966140453?text=Nome%3A%20${encodeURIComponent(
+          nome
+        )}%0ASolicita%C3%A7%C3%A3o%3A%20Atendente`;
+
+        await sendMessage(phone, "Certo! Vou te transferir para um atendente.");
+        await sendMessage(phone, link);
+        return res.sendStatus(200);
+      }
+
+      if (text === "3") {
+        const link = `https://wa.me/5511966140453?text=Nome%3A%20${encodeURIComponent(
+          nome
+        )}%0ASolicita%C3%A7%C3%A3o%3A%20Suporte`;
+
+        await sendMessage(phone, "Certo! Vou te transferir para o suporte.");
+        await sendMessage(phone, link);
+        return res.sendStatus(200);
+      }
+
+      await sendMessage(phone, "Opção inválida. Digite 1, 2 ou 3.");
+      return res.sendStatus(200);
+    }
+
+    // ======================================================
+    // ETAPA 3 — MENU DE PRODUTOS
+    // ======================================================
+    if (etapa === "menu_produtos") {
+      let produto = "";
+      let proximaEtapa = "";
+
+      if (text === "1") {
+        produto = "Banda Larga";
+        proximaEtapa = "bl_endereco";
+        await sendMessage(phone, "Informe o endereço completo:");
+      } else if (text === "2") {
+        produto = "Link Dedicado";
+        proximaEtapa = "ld_endereco";
+        await sendMessage(phone, "Informe o endereço completo:");
+      } else if (text === "3") {
+        produto = "Linha Móvel";
+        proximaEtapa = "lm_quantidade";
+        await sendMessage(phone, "Quantas linhas você precisa?");
+      } else if (text === "4") {
+        produto = "Linha Fixa";
+        proximaEtapa = "lf_endereco";
+        await sendMessage(phone, "Informe o endereço completo:");
+      } else if (text === "5") {
+        produto = "VoIP";
+        proximaEtapa = "voip_quantidade";
+        await sendMessage(phone, "Quantos ramais você precisa?");
+      } else if (text === "6") {
+        produto = "Armazenamento em nuvem";
+
+        const link = `https://wa.me/5511966140453?text=Nome%3A%20Cliente%0AProduto%3A%20Armazenamento%20em%20nuvem`;
+
+        await sendMessage(phone, "Encaminhando sua solicitação.");
+        await sendMessage(phone, link);
+        return res.sendStatus(200);
+      } else {
+        await sendMessage(phone, "Opção inválida. Escolha de 1 a 6.");
+        return res.sendStatus(200);
+      }
+
+      await salvarDados("", produto, "", phone, proximaEtapa);
+      return res.sendStatus(200);
+    }
+
+    // ======================================================
+    // ETAPAS FINAIS — COLETA DE INFORMAÇÕES
+    // ======================================================
+    const etapasInfo = {
+      bl_endereco: "Banda Larga",
+      ld_endereco: "Link Dedicado",
+      lf_endereco: "Linha Fixa",
+      lm_quantidade: "Linha Móvel",
+      voip_quantidade: "VoIP",
+    };
+
+    if (etapasInfo[etapa]) {
+      const produto = etapasInfo[etapa];
+      const info = text;
+
+      const link = `https://wa.me/5511966140453?text=Nome%3A%20Cliente%0AProduto%3A%20${encodeURIComponent(
+        produto
+      )}%0AInfo%3A%20${encodeURIComponent(info)}%0ATelefone%3A%20${phone}`;
+
+      await sendMessage(phone, "Perfeito! Encaminhando sua solicitação.");
+      await sendMessage(phone, link);
+
+      await salvarDados("", produto, info, phone, "finalizado");
+      return res.sendStatus(200);
+    }
+
+    return res.sendStatus(200);
+  } catch (err) {
+    console.error("Erro no webhook:", err);
+    return res.sendStatus(500);
+  }
+});
+
+// ======================================================
+// 🚀 INICIAR SERVIDOR
+// ======================================================
+app.listen(3000, () => console.log("Servidor rodando na porta 3000"));
