@@ -24,7 +24,7 @@ const SPREADSHEET_ID = "1MPvz5s6ogt6h8uLFsLQ2glmjiWW30lRQLt6blwTwfPo";
 const ABA_ATENDIMENTOS = "chatbot"; // Leads Centraltele
 const ABA_HISTORICO = "Historico";  // pode ser criada automaticamente
 
-// Número fixo para encaminhar (11 6614-0453)
+// Número fixo para encaminhar (11 96614-0453)
 const ATENDENTE_NUMERO = "5511966140453";
 
 // "Sessões" em memória (por número)
@@ -189,7 +189,7 @@ app.post("/webhook", async (req, res) => {
 
       if (text === "2") {
         // Falar com atendente
-        const resumo = `Nome: ${session.nome}\nFalar com atendente`;
+        const resumo = `Nome: ${session.nome}Telefone: ${from}Falar com atendente`;
         await encaminharParaAtendente(resumo);
         await salvarLeadFinal({
           nome: session.nome,
@@ -204,7 +204,7 @@ app.post("/webhook", async (req, res) => {
 
       if (text === "3") {
         // Falar com suporte
-        const resumo = `Nome: ${session.nome}\nFalar com Suporte`;
+        const resumo = `Nome: ${session.nome}Telefone: ${from}Falar com Suporte`;
         await encaminharParaAtendente(resumo);
         await salvarLeadFinal({
           nome: session.nome,
@@ -261,7 +261,7 @@ app.post("/webhook", async (req, res) => {
 
       if (text === "6") {
         session.produto = "Armazenamento em nuvem";
-        const resumo = `Nome: ${session.nome}\nProduto: ${session.produto}`;
+        const resumo = `Nome: ${session.nome}Telefone: ${from}Produto: ${session.produto}`;
         await encaminharParaAtendente(resumo);
         await salvarLeadFinal({
           nome: session.nome,
@@ -281,7 +281,7 @@ app.post("/webhook", async (req, res) => {
     // 5) Coletando endereço (Banda Larga / Link Dedicado)
     if (session.stage === "coletando_endereco") {
       const endereco = text;
-      const resumo = `Nome: ${session.nome}\nProduto: ${session.produto}\nEndereço: ${endereco}`;
+      const resumo = `Nome: ${session.nome}Telefone: ${from}Produto: ${session.produto}Endereço: ${endereco}`;
       await encaminharParaAtendente(resumo);
       await salvarLeadFinal({
         nome: session.nome,
@@ -297,7 +297,7 @@ app.post("/webhook", async (req, res) => {
     // 6) Coletando quantidade (Linha Móvel / Fixa / VoIP)
     if (session.stage === "coletando_quantidade") {
       const quantidade = text;
-      const resumo = `Nome: ${session.nome}\nProduto: ${session.produto}\nQuantidade: ${quantidade}`;
+      const resumo = `Nome: ${session.nome}Telefone: ${from}Produto: ${session.produto}Quantidade: ${quantidade}`;
       await encaminharParaAtendente(resumo);
       await salvarLeadFinal({
         nome: session.nome,
