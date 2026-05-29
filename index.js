@@ -1,4 +1,4 @@
-import express from "express";
+  import express from "express";
 import axios from "axios";
 import { google } from "googleapis";
 
@@ -13,7 +13,15 @@ const PHONE_NUMBER_ID = "1129395576926383";
 // 🔐 CONFIG GOOGLE SHEETS
 async function getSheets() {
   const auth = new google.auth.GoogleAuth({
-    keyFile: "credentials.json",
+    const keyPath = process.env.NODE_ENV === "production"
+  ? "/etc/secrets/credentials.json"
+  : "credentials.json";
+
+const auth = new google.auth.GoogleAuth({
+  keyFile: keyPath,
+  scopes: ["https://www.googleapis.com/auth/spreadsheets"]
+});
+,
     scopes: ["https://www.googleapis.com/auth/spreadsheets"],
   });
 
