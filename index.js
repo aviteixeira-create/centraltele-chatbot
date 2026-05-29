@@ -24,11 +24,11 @@ const sheets = google.sheets({ version: "v4", auth });
 const SPREADSHEET_ID = "1MPvz5s6ogt6h8uLFsLQ2glmjiWW30lRQLt6blwTwfPo";
 
 // Nome das abas
-const ABA_ATENDIMENTOS = "Página1"; // Leads Centraltele
+const ABA_ATENDIMENTOS = "chatbot"; // Leads Centraltele
 const ABA_HISTORICO = "Historico";  // pode ser criada automaticamente
 
 // Número fixo para encaminhar (11 6614-0453)
-const ATENDENTE_NUMERO = "551166140453";
+const ATENDENTE_NUMERO = "5511966140453";
 
 // "Sessões" em memória (por número)
 const sessions = {};
