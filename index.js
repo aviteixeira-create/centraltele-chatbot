@@ -7,16 +7,13 @@ const app = express();
 app.use(express.json());
 
 // Caminho do credentials.json (local + Render)
-const keyPath =
-  process.env.NODE_ENV === "production"
-    ? "/etc/secrets/credentials.json"
-    : path.resolve("credentials.json");
+const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
 
-// Autenticação Google Sheets
 const auth = new google.auth.GoogleAuth({
-  keyFile: keyPath,
+  credentials,
   scopes: ["https://www.googleapis.com/auth/spreadsheets"],
 });
+
 
 const sheets = google.sheets({ version: "v4", auth });
 
