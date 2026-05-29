@@ -200,6 +200,13 @@ app.post("/webhook", async (req, res) => {
           telefone,
         });
         await enviarMensagem(from, "Tudo certo! Encaminhei sua solicitação para um atendente.");
+
+        // 🔥 AQUI: envia o link para te chamar direto
+  await enviarMensagem(
+    from,
+    "Se preferir, você pode falar diretamente com nosso atendente pelo link:\nhttps://wa.me/5511966140453"
+  );
+        
         sessions[from] = { stage: "inicio", nome: session.nome, produto: null };
         return res.sendStatus(200);
       }
@@ -217,6 +224,13 @@ app.post("/webhook", async (req, res) => {
           telefone,
         });
         await enviarMensagem(from, "Encaminhei sua solicitação para o suporte.");
+
+        // 🔥 AQUI: envia o link para te chamar direto
+  await enviarMensagem(
+    from,
+    "Se preferir, você pode falar diretamente com nosso atendente pelo link:\nhttps://wa.me/5511966140453"
+  );
+        
         sessions[from] = { stage: "inicio", nome: session.nome, produto: null };
         return res.sendStatus(200);
       }
@@ -276,6 +290,13 @@ app.post("/webhook", async (req, res) => {
           telefone,
         });
         await enviarMensagem(from, "Perfeito! Encaminhei sua solicitação.");
+
+        // 🔥 AQUI: envia o link para te chamar direto
+  await enviarMensagem(
+    from,
+    "Se preferir, você pode falar diretamente com nosso atendente pelo link:\nhttps://wa.me/5511966140453"
+  );
+        
         sessions[from] = { stage: "inicio", nome: session.nome, produto: null };
         return res.sendStatus(200);
       }
@@ -299,6 +320,13 @@ app.post("/webhook", async (req, res) => {
         telefone,
       });
       await enviarMensagem(from, "Obrigado! Encaminhei sua solicitação.");
+
+      // 🔥 AQUI: envia o link para te chamar direto
+  await enviarMensagem(
+    from,
+    "Se preferir, você pode falar diretamente com nosso atendente pelo link:\nhttps://wa.me/5511966140453"
+  );
+      
       sessions[from] = { stage: "inicio", nome: session.nome, produto: null };
       return res.sendStatus(200);
     }
@@ -318,6 +346,13 @@ app.post("/webhook", async (req, res) => {
         telefone,
       });
       await enviarMensagem(from, "Perfeito! Encaminhei sua solicitação.");
+
+      // 🔥 AQUI: envia o link para te chamar direto
+  await enviarMensagem(
+    from,
+    "Se preferir, você pode falar diretamente com nosso atendente pelo link:\nhttps://wa.me/5511966140453"
+  );
+      
       sessions[from] = { stage: "inicio", nome: session.nome, produto: null };
       return res.sendStatus(200);
     }
